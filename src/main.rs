@@ -27,7 +27,7 @@ async fn sync(cmd: cli::SyncSubCommand) {
     let mut config = Config::load_from_file(config_path).expect("Error loading config");
 
     if let Some(out_dir) = cmd.out_dir() {
-        config.out_dir = out_dir.clone();
+        config.out_dir.clone_from(out_dir);
     }
 
     let mut sync = SyncService::init(config).expect("Error starting sync service");

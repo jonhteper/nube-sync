@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use reqwest_dav::list_cmd::ListEntity;
@@ -27,8 +27,7 @@ impl VersionService {
     pub fn entities_to_download(&self) -> Vec<ListEntity> {
         let to_download = self.version.files_to_download();
 
-        let list = self
-            .entities
+        self.entities
             .clone()
             .into_iter()
             .filter(|entity| {
@@ -39,9 +38,7 @@ impl VersionService {
 
                 to_download.contains(href)
             })
-            .collect();
-
-        list
+            .collect()
     }
 
     pub fn version(&self) -> &Version {
@@ -74,7 +71,7 @@ impl LocalVersion {
         Ok(last_version)
     }
 
-    pub fn save_in_file(&self, parent_dir: &PathBuf) -> AppResult<()> {
+    pub fn save_in_file(&self, parent_dir: &Path) -> AppResult<()> {
         let path = parent_dir.join(".sync");
         let mut file = File::create(path)?;
         let json_version = serde_json::to_string_pretty(&self)?;

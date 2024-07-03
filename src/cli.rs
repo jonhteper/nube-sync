@@ -33,7 +33,7 @@ impl SyncSubCommand {
     pub fn remote_location(&self) -> String {
         let mut str_location = self.remote_location.display().to_string();
         if !str_location.ends_with('/') {
-            str_location.push_str("/");
+            str_location.push('/');
         }
 
         str_location

@@ -90,9 +90,8 @@ impl SyncService {
                         continue;
                     }
 
-                    let base_url = Url::parse(
-                        format!("{}{}", self.config.host.to_string(), remote_dir).as_str(),
-                    )?;
+                    let base_url =
+                        Url::parse(format!("{}{}", self.config.host, remote_dir).as_str())?;
                     let url_path = base_url.path();
                     let remote_dir_path = &folder.href[url_path.len()..];
                     if remote_dir_path.is_empty() {
@@ -113,7 +112,7 @@ impl SyncService {
         Ok(())
     }
 
-    fn is_in_black_list(&self, href: &String) -> AppResult<bool> {
+    fn is_in_black_list(&self, href: &str) -> AppResult<bool> {
         let decoded_href = urlencoding::decode(href)?.to_string();
         if self.config.black_list.contains(&decoded_href) {
             return Ok(true);
@@ -129,8 +128,7 @@ impl SyncService {
     }
 
     async fn download_file(&mut self, file: &ListFile, remote_dir: &str) -> AppResult<()> {
-        let base_url =
-            Url::parse(format!("{}{}", self.config.host.to_string(), remote_dir).as_str())?;
+        let base_url = Url::parse(format!("{}{}", self.config.host, remote_dir).as_str())?;
         let url_path = base_url.path();
         let remote_path = &file.href[url_path.len()..];
         let download_uri = &file.href[self.config.host.path().len()..];
