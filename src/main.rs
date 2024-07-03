@@ -44,12 +44,12 @@ impl Config {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LastVersion {
+pub struct LocalVersion {
     // <href, in_fs_path>
     paths: HashMap<String, PathBuf>,
 }
 
-impl LastVersion {
+impl LocalVersion {
     /// Search file named `.sync` in `parent_dir` to get the last version of files.
     pub fn load_from_file(parent_dir: PathBuf) -> AppResult<Self> {
         let mut file_content = String::new();
@@ -77,7 +77,7 @@ impl LastVersion {
 pub struct SyncService {
     config: Config,
     client: Client,
-    last_version: LastVersion,
+    local_version: LocalVersion,
 }
 
 impl SyncService {
@@ -92,7 +92,7 @@ impl SyncService {
 
         let service = SyncService {
             client,
-            last_version: LastVersion::load_from_file(config.out_dir.clone())?,
+            local_version: LocalVersion::load_from_file(config.out_dir.clone())?,
             config,
         };
 
@@ -135,12 +135,12 @@ impl SyncService {
 
                     DirBuilder::new().create(&path).await?;
 
-                    self.last_version.add(folder.href.clone(), path);
+                    self.local_version.add(folder.href.clone(), path);
                 }
             }
         }
 
-        self.last_version
+        self.local_version
             .save_in_file(self.config.out_dir.clone())?;
 
         Ok(())
@@ -177,7 +177,7 @@ impl SyncService {
         let mut local_file = File::create(&local_path)?;
         local_file.write_all(&dowloaded)?;
 
-        self.last_version.add(file.href.clone(), local_path);
+        self.local_version.add(file.href.clone(), local_path);
 
         Ok(())
     }
