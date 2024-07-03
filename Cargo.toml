@@ -2,6 +2,9 @@
 name = "nube-sync"
 version = "0.1.0"
 edition = "2021"
+[[bin]]
+name = "nubesync"
+path = "src/main.rs"
 
 [dependencies]
 reqwest_dav = "0.1.11"

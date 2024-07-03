@@ -1,5 +1,7 @@
 /target
 
+/package
+
 sync/
 **/*.old
 
