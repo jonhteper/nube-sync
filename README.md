@@ -6,5 +6,5 @@ Simple WebDav sync client
 ```
 $ nubesync sync <REMOTE_LOCATION> --out <LOCAL_DIR> --config <CONFIG_LOCATION>
 
-$ nubesync clear --out <LOCAL_DIR>
+$ nubesync clear <LOCAL_DIR>
 ```
