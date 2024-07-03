@@ -239,7 +239,7 @@ impl SyncService {
     /// Remove files deleted on the server.
     fn delete_locals(&mut self, to_detele: Vec<String>) -> AppResult<()> {
         let mut folders_to_delete = Vec::new();
-        'hrefs: for href in to_detele {
+        for href in to_detele {
             let path = self.local_version.paths.remove(&href).unwrap();
 
             if path.is_dir() {
@@ -251,12 +251,6 @@ impl SyncService {
             }
 
             if path.is_file() {
-                for dir_path in &folders_to_delete {
-                    if path.starts_with(dir_path) {
-                        continue 'hrefs;
-                    }
-                }
-
                 println!("deleting local file: {}", path.display());
                 std::fs::remove_file(path)?;
             }
