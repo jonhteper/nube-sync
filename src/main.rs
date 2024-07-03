@@ -71,7 +71,7 @@ impl LocalVersion {
     pub fn save_in_file(&self, parent_dir: &PathBuf) -> AppResult<()> {
         let path = parent_dir.join(".sync");
         let mut file = File::create(path)?;
-        let json_version = serde_json::to_string(&self)?;
+        let json_version = serde_json::to_string_pretty(&self)?;
 
         file.write_all(json_version.as_bytes())?;
 
