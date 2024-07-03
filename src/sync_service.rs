@@ -149,8 +149,13 @@ impl SyncService {
         Ok(())
     }
 
-    pub fn clear_out_dir(&self) -> AppResult<()> {
-        let files = std::fs::read_dir(&self.config.out_dir)?;
+    pub fn clear_out_dir(out_dir: &PathBuf) -> AppResult<()> {
+        let db_file_location = out_dir.join(".sync");
+        if !db_file_location.is_file() {
+            return Ok(());
+        }
+
+        let files = std::fs::read_dir(out_dir)?;
         for file in files {
             let path = file?.path();
             if path.is_dir() {
