@@ -1,4 +1,4 @@
-use std::{env, fs::File, io::Read, path::PathBuf};
+use std::{fs::File, io::Read, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -15,8 +15,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load_from_file(path: Option<PathBuf>) -> AppResult<Self> {
-        let path = path.unwrap_or(env::current_dir()?.join("nube-sync.config.toml"));
+    pub fn load_from_file(path: PathBuf) -> AppResult<Self> {
         let mut file_content = String::new();
         let _ = File::open(path)?.read_to_string(&mut file_content)?;
         let config = toml::from_str(&file_content)?;
