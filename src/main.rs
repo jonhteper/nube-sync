@@ -68,6 +68,10 @@ impl LastVersion {
 
         Ok(())
     }
+
+    pub fn add(&mut self, href: String, path: PathBuf) {
+        self.paths.insert(href, path);
+    }
 }
 
 pub struct SyncService {
@@ -98,6 +102,11 @@ impl SyncService {
     pub async fn sync(&mut self, remote_dir: &str) -> AppResult<()> {
         println!("downloading location: {}...", remote_dir);
         let files = self.client.list(remote_dir, Depth::Infinity).await?;
+
+        self.apply_sync(remote_dir, files).await
+    }
+
+    async fn apply_sync(&mut self, remote_dir: &str, files: Vec<ListEntity>) -> AppResult<()> {
         for f in files {
             match f {
                 ListEntity::File(file) => {
@@ -126,7 +135,7 @@ impl SyncService {
 
                     DirBuilder::new().create(&path).await?;
 
-                    self.last_version.paths.insert(folder.href.clone(), path);
+                    self.last_version.add(folder.href.clone(), path);
                 }
             }
         }
@@ -168,9 +177,7 @@ impl SyncService {
         let mut local_file = File::create(&local_path)?;
         local_file.write_all(&dowloaded)?;
 
-        self.last_version
-            .paths
-            .insert(file.href.clone(), local_path);
+        self.last_version.add(file.href.clone(), local_path);
 
         Ok(())
     }
