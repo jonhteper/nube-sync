@@ -52,14 +52,23 @@ pub struct LocalVersion {
 impl LocalVersion {
     /// Search file named `.sync` in `parent_dir` to get the last version of files.
     pub fn load_from_file(parent_dir: PathBuf) -> AppResult<Self> {
+        let file = File::open(parent_dir.join(".sync"));
+        if let Err(err) = &file {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                return Ok(LocalVersion {
+                    paths: HashMap::new(),
+                });
+            }
+        }
+
         let mut file_content = String::new();
-        let _ = File::open(parent_dir.join(".sync"))?.read_to_string(&mut file_content)?;
+        let _ = file.unwrap().read_to_string(&mut file_content)?;
         let last_version = serde_json::from_str(&file_content)?;
 
         Ok(last_version)
     }
 
-    pub fn save_in_file(&self, parent_dir: PathBuf) -> AppResult<()> {
+    pub fn save_in_file(&self, parent_dir: &PathBuf) -> AppResult<()> {
         let path = parent_dir.join(".sync");
         let mut file = File::create(path)?;
         let json_version = serde_json::to_string(&self)?;
@@ -71,6 +80,120 @@ impl LocalVersion {
 
     pub fn add(&mut self, href: String, path: PathBuf) {
         self.paths.insert(href, path);
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Status {
+    Local,
+    Server,
+    Both,
+}
+
+#[derive(Debug, Clone)]
+pub struct ServerVersion {
+    pub paths: Vec<String>,
+}
+
+impl ServerVersion {
+    pub fn from_entities(files: &[ListEntity]) -> Self {
+        let mut paths = Vec::new();
+        for f in files {
+            let href = match f {
+                ListEntity::File(file) => file.href.clone(),
+                ListEntity::Folder(folder) => folder.href.clone(),
+            };
+
+            paths.push(href);
+        }
+
+        ServerVersion { paths }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Version {
+    paths: HashMap<String, Status>,
+}
+
+impl Version {
+    pub fn new(server: &ServerVersion, local: &LocalVersion) -> Self {
+        let mut paths = HashMap::new();
+        for href in local.paths.keys() {
+            paths.insert(href.clone(), Status::Local);
+        }
+
+        for href in &server.paths {
+            match paths.get_mut(href) {
+                Some(status) => *status = Status::Both,
+                None => {
+                    paths.insert(href.clone(), Status::Server);
+                }
+            }
+        }
+
+        Version { paths }
+    }
+
+    pub fn files_to_remove(&self) -> Vec<String> {
+        let mut paths = Vec::new();
+        for (href, status) in self.paths.iter() {
+            if *status == Status::Local {
+                paths.push(href.clone());
+            }
+        }
+
+        paths
+    }
+
+    pub fn files_to_download(&self) -> Vec<String> {
+        let mut paths = Vec::new();
+        for (href, status) in self.paths.iter() {
+            if *status == Status::Server {
+                paths.push(href.clone());
+            }
+        }
+
+        paths
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct VersionService {
+    version: Version,
+    entities: Vec<ListEntity>,
+}
+
+impl VersionService {
+    pub fn init(local: LocalVersion, entities: Vec<ListEntity>) -> Self {
+        let server_version = ServerVersion::from_entities(&entities);
+        let version = Version::new(&server_version, &local);
+
+        Self { version, entities }
+    }
+
+    pub fn entities_to_download(&self) -> Vec<ListEntity> {
+        let to_download = self.version.files_to_download();
+
+        let list = self
+            .entities
+            .clone()
+            .into_iter()
+            .filter(|entity| {
+                let href = match entity {
+                    ListEntity::File(file) => &file.href,
+                    ListEntity::Folder(folder) => &folder.href,
+                };
+
+                to_download.contains(href)
+            })
+            .collect();
+
+        list
+    }
+
+    pub fn version(&self) -> &Version {
+        &self.version
     }
 }
 
@@ -101,9 +224,27 @@ impl SyncService {
 
     pub async fn sync(&mut self, remote_dir: &str) -> AppResult<()> {
         println!("downloading location: {}...", remote_dir);
-        let files = self.client.list(remote_dir, Depth::Infinity).await?;
+        let server_files = self.client.list(remote_dir, Depth::Infinity).await?;
+        let version_service = VersionService::init(self.local_version.clone(), server_files);
 
-        self.apply_sync(remote_dir, files).await
+        self.delete_locals(version_service.version().files_to_remove())?;
+
+        let to_sycn_files = version_service.entities_to_download();
+
+        self.apply_sync(remote_dir, to_sycn_files).await?;
+
+        self.local_version.save_in_file(&self.config.out_dir)
+    }
+
+    /// Remove files deleted on the server.
+    fn delete_locals(&mut self, to_detele: Vec<String>) -> AppResult<()> {
+        for href in to_detele {
+            let path = self.local_version.paths.remove(&href).unwrap();
+            println!("deleting local file: {}", path.display());
+            std::fs::remove_file(path)?;
+        }
+
+        Ok(())
     }
 
     async fn apply_sync(&mut self, remote_dir: &str, files: Vec<ListEntity>) -> AppResult<()> {
@@ -139,9 +280,6 @@ impl SyncService {
                 }
             }
         }
-
-        self.local_version
-            .save_in_file(self.config.out_dir.clone())?;
 
         Ok(())
     }
