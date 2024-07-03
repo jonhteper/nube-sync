@@ -1,0 +1,5 @@
+/target
+
+sync/
+
+**/*.config.toml
