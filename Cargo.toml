@@ -1,6 +1,6 @@
 [package]
 name = "nube-sync"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [profile.release]
@@ -22,4 +22,8 @@ toml = "0.8.14"
 clap = {version = "4.5.4", features = ["derive"]}
 openssl = { version = "0.10", features = ["vendored"] }
 chrono = {version="0.4.38", features =["serde"]}
+getset = {version = "0.1.2", optional = true}
+named-ctor = {version = "0.1.1", optional = true}
 
+[features]
+version_migration = ["dep:named-ctor", "dep:getset"]

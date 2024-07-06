@@ -9,6 +9,9 @@ use chrono::{DateTime, Utc};
 use reqwest_dav::list_cmd::ListEntity;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "version_migration")]
+use named_ctor::NamedCtor;
+
 use crate::result::AppResult;
 
 #[derive(Debug, Clone)]
@@ -57,6 +60,7 @@ pub struct LocalFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "version_migration", derive(NamedCtor))]
 pub struct LocalVersion {
     files: HashMap<Href, LocalFile>,
 }

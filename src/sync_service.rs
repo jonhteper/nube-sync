@@ -5,15 +5,21 @@ use reqwest_dav::{
     list_cmd::{ListEntity, ListFile, ListFolder},
     Auth, Client, ClientBuilder, Depth,
 };
-
 use url::Url;
+
+#[cfg(feature = "version_migration")]
+use getset::Getters;
+#[cfg(feature = "version_migration")]
+use named_ctor::NamedCtor;
 
 use crate::{
     config::Config,
     result::AppResult,
-    versions::{LocalFile, LocalVersion, VersionService},
+    versions::{Href, LocalFile, LocalVersion, VersionService},
 };
 
+#[cfg_attr(feature = "version_migration", derive(Getters, NamedCtor))]
+#[cfg_attr(feature = "version_migration", getset(get = "pub"))]
 pub struct SyncService {
     config: Config,
     client: Client,
@@ -142,25 +148,34 @@ impl SyncService {
         Ok(false)
     }
 
-    async fn download_file(&mut self, file: &ListFile, remote_dir: &str) -> AppResult<()> {
+    pub fn define_paths(&self, remote_dir: &str, file_href: &Href) -> AppResult<DavPaths> {
         let base_url = Url::parse(format!("{}{}", self.config.host, remote_dir).as_str())?;
         let url_path = base_url.path();
-        let remote_path = &file.href[url_path.len()..];
+        let remote_path_str = &file_href[url_path.len()..];
+
+        let decoded_remote_path = urlencoding::decode(remote_path_str)?;
+        let remote_path = PathBuf::from(decoded_remote_path.as_ref());
+
+        Ok(DavPaths {
+            local: self.config.out_dir.join(&remote_path),
+            remote: remote_path,
+        })
+    }
+
+    async fn download_file(&mut self, file: &ListFile, remote_dir: &str) -> AppResult<()> {
         let download_uri = &file.href[self.config.host.path().len()..];
         let dowloaded = self.client.get(download_uri).await?.bytes().await?;
 
-        let decoded_remote_path = urlencoding::decode(remote_path)?;
-        let path = PathBuf::from(decoded_remote_path.as_ref());
-        println!("downloading: {decoded_remote_path}...");
+        let paths = self.define_paths(remote_dir, &file.href)?;
+        println!("downloading: {}...", paths.remote.display());
 
-        let local_path = self.config.out_dir.clone().join(path);
-        let mut local_file = File::create(&local_path)?;
+        let mut local_file = File::create(&paths.local)?;
         local_file.write_all(&dowloaded)?;
 
         self.local_version.add(
             file.href.clone(),
             LocalFile {
-                path: local_path,
+                path: paths.local,
                 is_dir: false,
                 last_modified: Some(file.last_modified),
             },
@@ -186,4 +201,10 @@ impl SyncService {
         }
         Ok(())
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct DavPaths {
+    pub remote: PathBuf,
+    pub local: PathBuf,
 }

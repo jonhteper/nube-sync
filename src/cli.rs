@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use clap::Parser;
 
 #[derive(Debug, Parser)]
+#[command(version)]
 pub struct NubeSyncCommand {
     #[clap(subcommand)]
     pub cmd: SubCommand,
@@ -10,8 +11,15 @@ pub struct NubeSyncCommand {
 
 #[derive(Debug, Parser)]
 pub enum SubCommand {
+    /// Sync files from the host server to the local machine.
     Sync(SyncSubCommand),
+
+    /// Clear the out directory if .sync file exist inside.
     Clear(ClearSubCommand),
+
+    #[cfg(feature = "version_migration")]
+    /// Migrate the old version of the database to the new one.
+    Migrate(SyncSubCommand),
 }
 
 #[derive(Debug, Parser)]
