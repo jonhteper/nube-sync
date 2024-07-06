@@ -2,7 +2,7 @@ use std::{fs::File, io::Write, path::PathBuf};
 
 use ::tokio::fs::DirBuilder;
 use reqwest_dav::{
-    list_cmd::{ListEntity, ListFile},
+    list_cmd::{ListEntity, ListFile, ListFolder},
     Auth, Client, ClientBuilder, Depth,
 };
 
@@ -84,6 +84,7 @@ impl SyncService {
                     if self.is_in_black_list(&file.href)? {
                         continue;
                     }
+
                     self.download_file(&file, remote_dir).await?;
                 }
                 ListEntity::Folder(folder) => {
@@ -91,31 +92,37 @@ impl SyncService {
                         continue;
                     }
 
-                    let base_url =
-                        Url::parse(format!("{}{}", self.config.host, remote_dir).as_str())?;
-                    let url_path = base_url.path();
-                    let remote_dir_path = &folder.href[url_path.len()..];
-                    if remote_dir_path.is_empty() {
-                        continue;
-                    }
-                    let remote_dir_path = urlencoding::decode(remote_dir_path)?;
-                    println!("dir: {}", remote_dir_path);
-
-                    let path = self.config.out_dir.clone().join(remote_dir_path.as_ref());
-
-                    DirBuilder::new().create(&path).await?;
-
-                    self.local_version.add(
-                        folder.href.clone(),
-                        LocalFile {
-                            path,
-                            is_dir: true,
-                            last_modified: None,
-                        },
-                    );
+                    self.create_dir(&folder, remote_dir).await?;
                 }
             }
         }
+
+        Ok(())
+    }
+
+    async fn create_dir(&mut self, folder: &ListFolder, remote_dir: &str) -> AppResult<()> {
+        let base_url = Url::parse(format!("{}{}", self.config.host, remote_dir).as_str())?;
+        let url_path = base_url.path();
+        let remote_dir_path = &folder.href[url_path.len()..];
+        if remote_dir_path.is_empty() {
+            return Ok(());
+        }
+
+        let remote_dir_path = urlencoding::decode(remote_dir_path)?;
+        println!("dir: {}", remote_dir_path);
+
+        let path = self.config.out_dir.clone().join(remote_dir_path.as_ref());
+
+        DirBuilder::new().create(&path).await?;
+
+        self.local_version.add(
+            folder.href.clone(),
+            LocalFile {
+                path,
+                is_dir: true,
+                last_modified: None,
+            },
+        );
 
         Ok(())
     }
