@@ -47,7 +47,7 @@ impl VersionService {
     }
 }
 
-type Href = String;
+pub type Href = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalFile {
@@ -58,7 +58,7 @@ pub struct LocalFile {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalVersion {
-    paths: HashMap<Href, LocalFile>,
+    files: HashMap<Href, LocalFile>,
 }
 
 impl LocalVersion {
@@ -68,7 +68,7 @@ impl LocalVersion {
         if let Err(err) = &file {
             if err.kind() == std::io::ErrorKind::NotFound {
                 return Ok(LocalVersion {
-                    paths: HashMap::new(),
+                    files: HashMap::new(),
                 });
             }
         }
@@ -91,11 +91,11 @@ impl LocalVersion {
     }
 
     pub fn add(&mut self, href: Href, file: LocalFile) {
-        self.paths.insert(href, file);
+        self.files.insert(href, file);
     }
 
     pub fn remove(&mut self, href: &Href) -> Option<LocalFile> {
-        self.paths.remove(href)
+        self.files.remove(href)
     }
 }
 
@@ -136,7 +136,7 @@ pub struct Version {
 impl Version {
     pub fn new(server: &ServerVersion, local: &LocalVersion) -> Self {
         let mut paths = HashMap::new();
-        for href in local.paths.keys() {
+        for href in local.files.keys() {
             paths.insert(href.clone(), Status::Local);
         }
 
@@ -144,7 +144,7 @@ impl Version {
             match paths.get_mut(*href) {
                 Some(status) => {
                     if let ListEntity::File(file) = server_file {
-                        if file.last_modified != local.paths[*href].last_modified.unwrap() {
+                        if file.last_modified != local.files[*href].last_modified.unwrap() {
                             *status = Status::OutOfDate;
                             continue;
                         }
