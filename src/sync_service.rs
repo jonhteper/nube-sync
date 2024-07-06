@@ -11,7 +11,7 @@ use url::Url;
 use crate::{
     config::Config,
     result::AppResult,
-    versions::{LocalVersion, VersionService},
+    versions::{LocalFile, LocalVersion, VersionService},
 };
 
 pub struct SyncService {
@@ -57,7 +57,8 @@ impl SyncService {
     fn delete_locals(&mut self, to_detele: Vec<String>) -> AppResult<()> {
         let mut folders_to_delete = Vec::new();
         for href in to_detele {
-            let path = self.local_version.remove(&href).unwrap();
+            let file = self.local_version.remove(&href).unwrap();
+            let path = &file.path;
 
             if path.is_dir() {
                 folders_to_delete.push(path.clone());
@@ -104,7 +105,14 @@ impl SyncService {
 
                     DirBuilder::new().create(&path).await?;
 
-                    self.local_version.add(folder.href.clone(), path);
+                    self.local_version.add(
+                        folder.href.clone(),
+                        LocalFile {
+                            path,
+                            is_dir: true,
+                            last_modified: None,
+                        },
+                    );
                 }
             }
         }
@@ -142,7 +150,14 @@ impl SyncService {
         let mut local_file = File::create(&local_path)?;
         local_file.write_all(&dowloaded)?;
 
-        self.local_version.add(file.href.clone(), local_path);
+        self.local_version.add(
+            file.href.clone(),
+            LocalFile {
+                path: local_path,
+                is_dir: false,
+                last_modified: Some(file.last_modified),
+            },
+        );
 
         Ok(())
     }

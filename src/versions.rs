@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use chrono::{DateTime, Utc};
 use reqwest_dav::list_cmd::ListEntity;
 use serde::{Deserialize, Serialize};
 
@@ -46,10 +47,18 @@ impl VersionService {
     }
 }
 
+type Href = String;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocalFile {
+    pub path: PathBuf,
+    pub is_dir: bool,
+    pub last_modified: Option<DateTime<Utc>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalVersion {
-    // <href, in_fs_path>
-    paths: HashMap<String, PathBuf>,
+    paths: HashMap<Href, LocalFile>,
 }
 
 impl LocalVersion {
@@ -81,11 +90,11 @@ impl LocalVersion {
         Ok(())
     }
 
-    pub fn add(&mut self, href: String, path: PathBuf) {
-        self.paths.insert(href, path);
+    pub fn add(&mut self, href: Href, file: LocalFile) {
+        self.paths.insert(href, file);
     }
 
-    pub fn remove(&mut self, href: &String) -> Option<PathBuf> {
+    pub fn remove(&mut self, href: &Href) -> Option<LocalFile> {
         self.paths.remove(href)
     }
 }
@@ -94,33 +103,34 @@ impl LocalVersion {
 pub enum Status {
     Local,
     Server,
-    Both,
+    OutOfDate,
+    Sync,
 }
 
 #[derive(Debug, Clone)]
-pub struct ServerVersion {
-    pub paths: Vec<String>,
+pub struct ServerVersion<'a> {
+    pub files: HashMap<&'a Href, &'a ListEntity>,
 }
 
-impl ServerVersion {
-    pub fn from_entities(files: &[ListEntity]) -> Self {
-        let mut paths = Vec::new();
-        for f in files {
+impl<'a> ServerVersion<'a> {
+    pub fn from_entities(server_files: &'a [ListEntity]) -> ServerVersion<'a> {
+        let mut files = HashMap::new();
+        for f in server_files {
             let href = match f {
-                ListEntity::File(file) => file.href.clone(),
-                ListEntity::Folder(folder) => folder.href.clone(),
+                ListEntity::File(file) => &file.href,
+                ListEntity::Folder(folder) => &folder.href,
             };
 
-            paths.push(href);
+            files.insert(href, f);
         }
 
-        ServerVersion { paths }
+        ServerVersion { files }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Version {
-    paths: HashMap<String, Status>,
+    paths: HashMap<Href, Status>,
 }
 
 impl Version {
@@ -130,11 +140,20 @@ impl Version {
             paths.insert(href.clone(), Status::Local);
         }
 
-        for href in &server.paths {
-            match paths.get_mut(href) {
-                Some(status) => *status = Status::Both,
+        for (href, server_file) in &server.files {
+            match paths.get_mut(*href) {
+                Some(status) => {
+                    if let ListEntity::File(file) = server_file {
+                        if file.last_modified != local.paths[*href].last_modified.unwrap() {
+                            *status = Status::OutOfDate;
+                            continue;
+                        }
+                    }
+
+                    *status = Status::Sync;
+                }
                 None => {
-                    paths.insert(href.clone(), Status::Server);
+                    paths.insert(href.to_string(), Status::Server);
                 }
             }
         }
@@ -142,7 +161,7 @@ impl Version {
         Version { paths }
     }
 
-    pub fn files_to_remove(&self) -> Vec<String> {
+    pub fn files_to_remove(&self) -> Vec<Href> {
         let mut paths = Vec::new();
         for (href, status) in self.paths.iter() {
             if *status == Status::Local {
@@ -153,10 +172,10 @@ impl Version {
         paths
     }
 
-    pub fn files_to_download(&self) -> Vec<String> {
+    pub fn files_to_download(&self) -> Vec<Href> {
         let mut paths = Vec::new();
         for (href, status) in self.paths.iter() {
-            if *status == Status::Server {
+            if *status != Status::Sync {
                 paths.push(href.clone());
             }
         }
