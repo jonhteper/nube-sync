@@ -9,6 +9,7 @@ use sync_service::SyncService;
 
 mod cli;
 mod config;
+mod conn_retry;
 mod result;
 mod sync_service;
 mod versions;

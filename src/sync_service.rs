@@ -14,6 +14,7 @@ use named_ctor::NamedCtor;
 
 use crate::{
     config::Config,
+    conn_retry::DEFAULT_CONN_RETRY,
     result::AppResult,
     versions::{Href, LocalFile, LocalVersion, VersionService},
 };
@@ -47,7 +48,9 @@ impl SyncService {
 
     pub async fn sync(&mut self, remote_dir: &str) -> AppResult<()> {
         println!("sync location: {}...", remote_dir);
-        let server_files = self.client.list(remote_dir, Depth::Infinity).await?;
+        let server_files = DEFAULT_CONN_RETRY
+            .execute_with_retries(|| self.client.list(remote_dir, Depth::Infinity))
+            .await?;
         let version_service = VersionService::init(self.local_version.clone(), server_files);
 
         self.delete_locals(version_service.version().files_to_remove())?;
@@ -164,7 +167,12 @@ impl SyncService {
 
     async fn download_file(&mut self, file: &ListFile, remote_dir: &str) -> AppResult<()> {
         let download_uri = &file.href[self.config.host.path().len()..];
-        let dowloaded = self.client.get(download_uri).await?.bytes().await?;
+        let dowloaded = DEFAULT_CONN_RETRY
+            .execute_with_retries(|| self.client.get(download_uri))
+            .await?
+            .bytes()
+            .await?;
+        //let dowloaded = self.client.get(download_uri).await?.bytes().await?;
 
         let paths = self.define_paths(remote_dir, &file.href)?;
         println!("downloading: {}...", paths.remote.display());
