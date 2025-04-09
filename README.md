@@ -11,3 +11,7 @@ $ nubesync clear <LOCAL_DIR>
 
 ## Disclamer
 This CLI was tested only with Nextcloud WebDAV service. Is possible that don't work with other servers.
+
+## Build Dependencies
+* musl compiler
+* `x86_64-unknown-linux-musl` rust target
