@@ -37,7 +37,9 @@ impl LocalVersion {
 
 impl SyncService {
     pub fn init_with_empty_db(config: Config) -> AppResult<SyncService> {
+        let reqwest_client = reqwest::ClientBuilder::new().use_rustls_tls().build()?;
         let client = ClientBuilder::new()
+            .set_agent(reqwest_client)
             .set_host(config.host.to_string())
             .set_auth(Auth::Basic(
                 config.username.clone(),
